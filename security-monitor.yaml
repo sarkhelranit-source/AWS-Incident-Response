@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Metadata:
+    Generator: "former2"
+Description: ""
+Resources:
+    CloudTrailTrail:
+        Type: "AWS::CloudTrail::Trail"
+        Properties:
+            TrailName: "management-events"
+            S3BucketName: !Sub "aws-cloudtrail-logs-${AWS::AccountId}-062477de"
+            IncludeGlobalServiceEvents: true
+            IsMultiRegionTrail: true
+            EnableLogFileValidation: false
+            IsLogging: true
+
+    LambdaFunction:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: "RespondFailedLogin"
+            Handler: "lambda_function.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: "prod-iad-c1-djusa-tasks"
+                S3Key: !Sub "/snapshots/${AWS::AccountId}/RespondFailedLogin-050f05a3-97f7-4c74-8da3-b4bbb7f63524"
+                S3ObjectVersion: "gZEKm_21lkBDydnc0wAyIgLPkFjX4EHv"
+            MemorySize: 128
+            Role: !GetAtt IAMRole.Arn
+            Runtime: "python3.13"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+
+    SNSTopic:
+        Type: "AWS::SNS::Topic"
+        Properties:
+            DisplayName: ""
+            TopicName: "FailedLoginAlerts"
+
+    EventsRule:
+        Type: "AWS::Events::Rule"
+        Properties:
+            Name: "DetectFailedLogin"
+            EventPattern: "{\"source\":[\"aws.signin\"],\"detail-type\":[\"AWS Console Sign In via CloudTrail\"],\"detail\":{\"additionalEventData\":{\"MFAUsed\":[\"No\"]},\"responseElements\":{\"ConsoleLogin\":[\"Failure\"]}}}"
+            State: "ENABLED"
+            Targets: 
+              - 
+                Arn: !GetAtt LambdaFunction.Arn
+                Id: "Id62f66df9-9592-47c2-b7d2-51d36c2fddfa"
+                RoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/service-role/Amazon_EventBridge_Invoke_Lambda_1545672492"
+            EventBusName: "default"
+
+    IAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "DetectLoginFails"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - !Ref IAMManagedPolicy
+            Description: "Allows Lambda functions to call AWS services on your behalf."
+
+    IAMManagedPolicy:
+        Type: "AWS::IAM::ManagedPolicy"
+        Properties:
+            ManagedPolicyName: "SecurityAlertPolicy"
+            Path: "/"
+            PolicyDocument: !Sub |
+                {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Sid": "AllowPublishingToSNS",
+                      "Effect": "Allow",
+                      "Action": [
+                        "sns:Publish"
+                      ],
+                      "Resource": "${SNSTopic}"
+                    },
+                    {
+                      "Sid": "AllowBasicLambdaLogging",
+                      "Effect": "Allow",
+                      "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Sid": "AllowIAMRemediationActions",
+                      "Effect": "Allow",
+                      "Action": [
+                        "iam:UpdateLoginProfile",
+                        "iam:DeleteLoginProfile",
+                        "iam:ListUsers",
+                        "iam:TagUser",
+                        "iam:UpdateUser",
+                        "iam:DeactivateMFADevice"
+                      ],
+                      "Resource": "*"
+                    }
+                  ]
+                }
+                
+
+    SNSSubscription:
+        Type: "AWS::SNS::Subscription"
+        Properties:
+            TopicArn: !Ref SNSTopic
+            Endpoint: "sarkhelranit2001@gmail.com"
+            Protocol: "email"
+            Region: !Ref AWS::Region
+
