@@ -37,14 +37,6 @@ A serverless security monitoring solution that detects failed AWS Console login 
 
 ---
 
-## 📦 Project Structure
-aws-security-incident-response/
-├── README.md
-|── security-monitor.yaml
-├── lambda/
-│   └── index.py         # Python script for the Lambda function
-└── aws-incident-response.png
-
 ## 🔬 Testing
 
 You can test the setup in two ways:
